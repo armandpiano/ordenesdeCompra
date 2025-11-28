@@ -17,8 +17,8 @@ switch ($action) {
     case 'import-excel':
         $controller->importExcel();
         break;
-    case 'select-store':
-        $controller->selectStore();
+    case 'prepare-store-preview':
+        $controller->prepareStorePreview();
         break;
     case 'update-line':
         $controller->updateLine();

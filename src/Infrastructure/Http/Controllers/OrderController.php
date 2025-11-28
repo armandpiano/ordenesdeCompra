@@ -31,13 +31,12 @@ class OrderController
 
     public function importExcel(): void
     {
-        if (!isset($_POST['clientCode']) || empty($_FILES['order_excel']['name'])) {
-            $error = 'Debes capturar el cliente y seleccionar un archivo.';
+        if (empty($_FILES['order_excel']['name'])) {
+            $error = 'Debes seleccionar un archivo.';
             $this->render('upload_excel.php', ['error' => $error]);
             return;
         }
 
-        $clientCode = trim((string) $_POST['clientCode']);
         $paths = require __DIR__ . '/../../../../config/paths.php';
         $uploadsDir = $paths['uploads_dir'];
         if (!is_dir($uploadsDir)) {
@@ -62,7 +61,63 @@ class OrderController
 
         $dependencies = $this->buildDependencies();
 
-        $command = new ImportExcelOrderCommand($clientCode, $targetFile);
+        $rawLines = $dependencies['excelImporter']->import($targetFile);
+        $storesSummary = [];
+        foreach ($rawLines as $rawLine) {
+            $storeKey = isset($rawLine['store']) ? (string) $rawLine['store'] : '000';
+            if (!isset($storesSummary[$storeKey])) {
+                $storesSummary[$storeKey] = 0;
+            }
+            $storesSummary[$storeKey] += 1;
+        }
+
+        $_SESSION['uploaded_excel_path'] = $targetFile;
+        $_SESSION['stores_summary'] = $storesSummary;
+        $_SESSION['stores_pending'] = array_keys($storesSummary);
+        $_SESSION['stores_completed'] = [];
+        unset($_SESSION['order_preview']);
+        $_SESSION['last_client_code'] = '';
+
+        $this->render('order_preview.php', [
+            'preview' => null,
+            'message' => null,
+            'storesSummary' => $storesSummary,
+            'lastClientCode' => '',
+        ]);
+    }
+
+    public function prepareStorePreview(): void
+    {
+        if (!isset($_SESSION['uploaded_excel_path'])) {
+            header('Location: /index.php');
+            return;
+        }
+
+        $clientCode = isset($_POST['clientCode']) ? trim((string) $_POST['clientCode']) : '';
+        $store = isset($_POST['store']) ? (string) $_POST['store'] : '';
+
+        if ($clientCode === '' || $store === '') {
+            $storesSummary = isset($_SESSION['stores_summary']) ? (array) $_SESSION['stores_summary'] : [];
+            $message = 'Debes capturar cliente y seleccionar una tienda.';
+            $this->render('order_preview.php', [
+                'preview' => null,
+                'message' => $message,
+                'storesSummary' => $storesSummary,
+                'lastClientCode' => $clientCode,
+            ]);
+            return;
+        }
+
+        $_SESSION['last_client_code'] = $clientCode;
+
+        $dependencies = $this->buildDependencies();
+        $command = new ImportExcelOrderCommand(
+            $clientCode,
+            (string) $_SESSION['uploaded_excel_path'],
+            $store,
+            isset($_SESSION['stores_pending']) ? (array) $_SESSION['stores_pending'] : [],
+            isset($_SESSION['stores_completed']) ? (array) $_SESSION['stores_completed'] : []
+        );
         $handler = new ImportExcelOrderHandler(
             $dependencies['clientRepository'],
             $dependencies['catalogRepository'],
@@ -72,22 +127,16 @@ class OrderController
         );
 
         $orderPreview = $handler($command);
+        $orderPreview->selectStore($store);
         $_SESSION['order_preview'] = serialize($orderPreview);
 
-        $this->render('order_preview.php', ['preview' => $orderPreview, 'message' => null]);
-    }
-
-    public function selectStore(): void
-    {
-        if (!isset($_SESSION['order_preview'])) {
-            header('Location: /index.php');
-            return;
-        }
-        $preview = unserialize($_SESSION['order_preview']);
-        $store = isset($_POST['store']) ? (string) $_POST['store'] : '';
-        $preview->selectStore($store);
-        $_SESSION['order_preview'] = serialize($preview);
-        $this->render('order_preview.php', ['preview' => $preview, 'message' => null]);
+        $storesSummary = isset($_SESSION['stores_summary']) ? (array) $_SESSION['stores_summary'] : [];
+        $this->render('order_preview.php', [
+            'preview' => $orderPreview,
+            'message' => null,
+            'storesSummary' => $storesSummary,
+            'lastClientCode' => $clientCode,
+        ]);
     }
 
     public function updateLine(): void
@@ -110,7 +159,14 @@ class OrderController
 
         list($updatedPreview, $message) = $handler(new UpdateOrderLineCommand($store, $index, $newCode), $preview);
         $_SESSION['order_preview'] = serialize($updatedPreview);
-        $this->render('order_preview.php', ['preview' => $updatedPreview, 'message' => $message]);
+        $storesSummary = isset($_SESSION['stores_summary']) ? (array) $_SESSION['stores_summary'] : [];
+        $lastClientCode = isset($_SESSION['last_client_code']) ? (string) $_SESSION['last_client_code'] : '';
+        $this->render('order_preview.php', [
+            'preview' => $updatedPreview,
+            'message' => $message,
+            'storesSummary' => $storesSummary,
+            'lastClientCode' => $lastClientCode,
+        ]);
     }
 
     public function generateModForStore(): void
@@ -127,6 +183,8 @@ class OrderController
         list($modFile, $updatedPreview) = $handler(new GenerateModForStoreCommand($store), $preview);
 
         $_SESSION['order_preview'] = serialize($updatedPreview);
+        $_SESSION['stores_pending'] = $updatedPreview->storesPending();
+        $_SESSION['stores_completed'] = $updatedPreview->storesCompleted();
 
         header('Content-Type: application/xml');
         header('Content-Disposition: attachment; filename="' . $modFile->getFileName() . '"');

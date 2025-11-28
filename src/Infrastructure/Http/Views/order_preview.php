@@ -2,13 +2,58 @@
 use Prosa\Orders\Application\Dto\OrderPreviewDto;
 use Prosa\Orders\Application\Dto\OrderPreviewLineDto;
 use Prosa\Orders\Application\Dto\StorePreviewDto;
-/** @var OrderPreviewDto $preview */
+/** @var OrderPreviewDto|null $preview */
 /** @var string|null $message */
+/** @var array<string, int> $storesSummary */
+/** @var string|null $lastClientCode */
 ?>
-<?php if (!isset($preview)): ?>
+
+<?php $storesSummary = isset($storesSummary) ? $storesSummary : []; ?>
+<?php $lastClientCode = isset($lastClientCode) ? $lastClientCode : ''; ?>
+<?php $pending = isset($preview) ? $preview->storesPending() : array_keys($storesSummary); ?>
+
+<?php if ($message): ?>
+    <div class="alert alert-warning"><?php echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?></div>
+<?php endif; ?>
+
+<?php if (empty($storesSummary) && !isset($preview)): ?>
     <div class="alert alert-warning">No hay información de vista previa.</div>
     <p><a href="/index.php">Volver al inicio</a></p>
 <?php return; endif; ?>
+
+<?php if (!empty($storesSummary)): ?>
+    <div class="alert alert-info">
+        <strong>Tiendas detectadas en el Excel:</strong>
+        <ul>
+            <?php foreach ($storesSummary as $storeKey => $count): ?>
+                <li><?php echo htmlspecialchars($storeKey, ENT_QUOTES, 'UTF-8'); ?> – <?php echo (int) $count; ?> renglones</li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+<?php endif; ?>
+
+<div class="store-selector">
+    <form method="POST" action="?action=prepare-store-preview">
+        <label for="store">Selecciona tienda:</label>
+        <select name="store" id="store" required>
+            <option value="">-- Selecciona --</option>
+            <?php foreach ($pending as $storeKey): ?>
+                <?php $count = isset($storesSummary[$storeKey]) ? $storesSummary[$storeKey] : 0; ?>
+                <option value="<?php echo htmlspecialchars($storeKey, ENT_QUOTES, 'UTF-8'); ?>" <?php echo isset($preview) && $preview->selectedStore() === $storeKey ? 'selected' : ''; ?>>
+                    <?php echo htmlspecialchars($storeKey, ENT_QUOTES, 'UTF-8'); ?> – <?php echo (int) $count; ?> renglones
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <label for="clientCode">Cliente:</label>
+        <input type="text" name="clientCode" id="clientCode" value="<?php echo htmlspecialchars((string) $lastClientCode, ENT_QUOTES, 'UTF-8'); ?>" pattern="\S+" required>
+        <button type="submit">Ver tienda</button>
+    </form>
+</div>
+
+<?php if (!isset($preview)): ?>
+    <div class="alert alert-info">Sube un Excel y selecciona tienda + cliente para ver la vista previa.</div>
+    <p><a href="/index.php">Volver al inicio</a></p>
+    <?php return; endif; ?>
 
 <div class="alert alert-info">
     <strong>Cliente:</strong> <?php echo htmlspecialchars($preview->client()->id()->padded(), ENT_QUOTES, 'UTF-8'); ?>
@@ -16,29 +61,13 @@ use Prosa\Orders\Application\Dto\StorePreviewDto;
     | Lista de precios: <?php echo htmlspecialchars((string) $preview->client()->priceList(), ENT_QUOTES, 'UTF-8'); ?>
 </div>
 
-<?php if ($message): ?>
-    <div class="alert alert-warning"><?php echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?></div>
-<?php endif; ?>
-
 <?php $pending = $preview->storesPending(); ?>
 <?php if (empty($pending)): ?>
     <div class="alert alert-info">Todas las tiendas han sido procesadas.</div>
     <p><a href="/index.php">Volver al inicio</a></p>
 <?php return; endif; ?>
 
-<div class="store-selector">
-    <form method="POST" action="?action=select-store">
-        <label for="store">Selecciona tienda:</label>
-        <select name="store" id="store">
-            <?php foreach ($pending as $storeKey): ?>
-                <option value="<?php echo htmlspecialchars($storeKey, ENT_QUOTES, 'UTF-8'); ?>" <?php echo $preview->selectedStore() === $storeKey ? 'selected' : ''; ?>>
-                    <?php echo htmlspecialchars($storeKey, ENT_QUOTES, 'UTF-8'); ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-        <button type="submit">Ver tienda</button>
-    </form>
-</div>
+<div class="alert alert-info">Tiendas pendientes: <?php echo implode(', ', $pending); ?></div>
 
 <?php $selected = $preview->selectedStore(); ?>
 <?php if ($selected === null || $selected === ''): ?>

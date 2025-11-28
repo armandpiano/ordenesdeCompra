@@ -27,6 +27,15 @@ class GenericExcelOrderImporter
         $sheet = $spreadsheet->getActiveSheet();
         $rows = $sheet->toArray(null, true, true, true);
 
+        $rows = array_values(array_filter($rows, function (array $row) {
+            foreach ($row as $value) {
+                if (trim((string) $value) !== '') {
+                    return true;
+                }
+            }
+            return false;
+        }));
+
         if (empty($rows)) {
             return [];
         }
@@ -34,9 +43,10 @@ class GenericExcelOrderImporter
         $headerRow = array_shift($rows);
         $sampleRows = array_slice($rows, 0, 20);
         $headerValues = array_values($headerRow);
+        $sampleValues = array_map('array_values', $sampleRows);
 
-        $articleColumn = $this->catalogRepository->detectArticleColumn($headerValues, array_map('array_values', $sampleRows));
-        $storeColumn = $this->detectColumnByName($headerValues, ['TIENDA', 'SUCURSAL'], 0);
+        $articleColumn = $this->catalogRepository->detectArticleColumn($headerValues, $sampleValues);
+        $storeColumn = $this->detectStoreColumn($headerValues, $sampleValues, 0);
         $quantityColumn = $this->detectColumnByName($headerValues, ['CANT', 'CANTIDAD'], 1);
         $priceColumn = $this->detectColumnByName($headerValues, ['COSTO', 'PRECIO'], 2);
 
@@ -64,6 +74,35 @@ class GenericExcelOrderImporter
                 }
             }
         }
+        // fallback documentado
+        return $default;
+    }
+
+    private function detectStoreColumn(array $headerRow, array $sampleRows, int $default): int
+    {
+        $index = $this->detectColumnByName($headerRow, ['TIENDA', 'SUCURSAL', 'STORE', 'ALMACEN'], -1);
+        if ($index !== -1) {
+            return $index;
+        }
+
+        $counts = [];
+        foreach ($sampleRows as $row) {
+            foreach ($row as $idx => $value) {
+                $trimmed = trim((string) $value);
+                if ($trimmed === '') {
+                    continue;
+                }
+                if (preg_match('/^\d{1,5}$/', $trimmed)) {
+                    $counts[$idx] = isset($counts[$idx]) ? $counts[$idx] + 1 : 1;
+                }
+            }
+        }
+
+        if (!empty($counts)) {
+            $maxIndex = array_search(max($counts), $counts, true);
+            return (int) $maxIndex;
+        }
+
         // fallback documentado
         return $default;
     }

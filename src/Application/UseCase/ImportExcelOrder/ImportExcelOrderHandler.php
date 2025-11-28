@@ -73,6 +73,13 @@ class ImportExcelOrderHandler
 
         $rawLines = $this->importer->import($command->excelFilePath());
 
+        if ($command->storeKey() !== null) {
+            $targetStore = (string) $command->storeKey();
+            $rawLines = array_values(array_filter($rawLines, function ($line) use ($targetStore) {
+                return isset($line['store']) && (string) $line['store'] === $targetStore;
+            }));
+        }
+
         $stores = [];
         foreach ($rawLines as $index => $rawLine) {
             $catalogCode = null;
@@ -143,7 +150,13 @@ class ImportExcelOrderHandler
             $storeDtos[$storeKey] = new StorePreviewDto($storeKey, $lines, $totalClient, $totalSae);
         }
 
-        $storeKeys = array_keys($storeDtos);
-        return new OrderPreviewDto($client, $storeDtos, $storeKeys, [], null);
+        $storeKeys = $command->storesPending();
+        if (empty($storeKeys)) {
+            $storeKeys = array_keys($storeDtos);
+        }
+        $completed = $command->storesCompleted();
+
+        $selected = $command->storeKey();
+        return new OrderPreviewDto($client, $storeDtos, $storeKeys, $completed, $selected);
     }
 }
