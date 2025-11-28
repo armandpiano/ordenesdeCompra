@@ -1,0 +1,14 @@
+{
+    "name": "prosa/ordenes-de-compra",
+    "description": "Importador de órdenes de compra desde Excel con generación de MOD para SAE",
+    "type": "project",
+    "require": {
+        "php": ">=7.3",
+        "phpoffice/phpspreadsheet": "^1.20"
+    },
+    "autoload": {
+        "psr-4": {
+            "Prosa\\Orders\\": "src/"
+        }
+    }
+}
