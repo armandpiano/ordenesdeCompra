@@ -1,0 +1,60 @@
+############################
+# ARCHIVOS GENERADOS / CACHES
+############################
+
+# Composer
+/vendor/
+/composer.lock
+
+# Archivos temporales del proyecto
+/storage/uploads/
+/storage/temp/
+/storage/*.log
+
+# Archivos MOD generados
+*.mod
+
+# Archivos Excel subidos
+*.xlsx
+*.xls
+*.xlsm
+*.ods
+*.csv
+
+############################
+# SISTEMA OPERATIVO
+############################
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Mac
+.DS_Store
+
+############################
+# IDEs
+############################
+
+# VSCode
+.vscode/
+
+############################
+# PHP / FRAMEWORK / DEBUG
+############################
+
+# Cache
+*.cache
+*.tmp
+
+# Logs
+*.log
+
+############################
+# IGNORAR ARCHIVOS PERSONALES
+############################
+
+# Rutas específicas del usuario
+/config/firebird.php
+/data/ARTICULOS.txt

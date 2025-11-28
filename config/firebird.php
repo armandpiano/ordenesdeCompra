@@ -1,6 +1,6 @@
 <?php
 return [
-    'host'     => 'localhost:/ruta/a/EMPRESA01.FDB', // ajustar según entorno
+    'host'     => 'localhost:C:\Users\Armando\Desktop\Documentacion\Prosa\SAE90EMPRE01.FDB', // ajustar según entorno
     'username' => 'SYSDBA',
     'password' => 'masterkey',
     'charset'  => 'UTF8',
